@@ -24,7 +24,7 @@ def align_labels_with_tokens(labels, word_ids, text_labels):
 
 def tokenize_and_align_labels(examples, tokenizer, label2id):
     tokenized_inputs = tokenizer(
-        examples["words"], truncation=True, is_split_into_words=True, max_length=512, padding="max_length",
+        examples["words"], truncation=True, is_split_into_words=True, max_length=512, padding=True,
         return_tensors="np"
     )
 
