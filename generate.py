@@ -101,7 +101,7 @@ def generate_tokenised_dataset(json_path: Path) -> None:
 
 
 if __name__ == "__main__":
-    json_path = Path(".").resolve().parent / "bert" / "pii_training_data.json"
+    json_path = Path(".").resolve() / "pii_training_data.json"
     train_dataset, test_dataset = generate_tokenised_dataset(
         json_path=json_path)
     train_dataset.save_to_disk("hf_train_ner_dataset")
