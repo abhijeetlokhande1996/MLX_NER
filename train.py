@@ -71,7 +71,7 @@ if __name__ == "__main__":
             train_dataset)//batch_size, desc="Batches")
 
         for i in batch_iterator:
-            st = time.time()
+            # st = time.time()
             slice = train_dataset[i: i + batch_size]
             words, ner_labels = slice.pop("words"), slice.pop("ner_labels")
             labels = slice.pop("labels")
@@ -83,5 +83,8 @@ if __name__ == "__main__":
             loss_value, grads = loss_and_grad_fn(model, slice, labels)
             optimizer.update(model, grads)
             epoch_loss += loss_value
-            et = time.time()
+            # et = time.time()
+
+            # batch_iterator.set_postfix(loss=epoch_loss.tolist())
+
         print("Epoch: {}, Loss: {}".format(epoch+1, epoch_loss.tolist()))
