@@ -65,9 +65,12 @@ if __name__ == "__main__":
     optimizer = mlx.optimizers.Adam(learning_rate=1e-3)
     batch_size = 32
     num_epochs = 1
-    for epoch in tqdm(iterable=range(num_epochs), total=num_epochs):
+    for epoch in tqdm(iterable=range(num_epochs), total=num_epochs, desc="Epochs"):
         epoch_loss = 0
-        for i in range(0, len(train_dataset), batch_size):
+        batch_iterator = tqdm(range(0, len(train_dataset), batch_size), total=len(
+            train_dataset)//batch_size, desc="Batches")
+
+        for i in batch_iterator:
             st = time.time()
             slice = train_dataset[i: i + batch_size]
             words, ner_labels = slice.pop("words"), slice.pop("ner_labels")
@@ -75,10 +78,10 @@ if __name__ == "__main__":
             for key in slice.keys():
                 slice[key] = mx.array([mx.array(array)
                                       for array in slice[key]])
+
             labels = mx.array([mx.array(array) for array in labels])
             loss_value, grads = loss_and_grad_fn(model, slice, labels)
             optimizer.update(model, grads)
             epoch_loss += loss_value
             et = time.time()
-            print(f" Time Exec for Batch: {et-st} seconds")
         print("Epoch: {}, Loss: {}".format(epoch+1, epoch_loss.tolist()))
