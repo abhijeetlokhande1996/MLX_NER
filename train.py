@@ -52,8 +52,8 @@ def loss_function(model, x: mx.array, y: mx.array) -> mx.array:
 
 
 if __name__ == "__main__":
+    print("**** Training ****")
 
-    DATASET_PATH = "/Users/abhijeetlokhande/Documents/GitHub/private_ai/src/huggingface_pii_english_dataset"
     train_dataset = Dataset.load_from_disk("./hf_train_ner_dataset")
 
     test_dataset = Dataset.load_from_disk("./hf_test_ner_dataset")
