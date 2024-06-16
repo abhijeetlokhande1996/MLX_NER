@@ -101,6 +101,7 @@ def generate_tokenised_dataset(json_path: Path) -> None:
 
 
 if __name__ == "__main__":
+    print("*** Generating Dataset ***")
     json_path = Path(".").resolve() / "pii_training_data.json"
     train_dataset, test_dataset = generate_tokenised_dataset(
         json_path=json_path)
