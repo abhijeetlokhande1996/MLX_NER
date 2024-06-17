@@ -17,6 +17,9 @@ import time
 import logging
 import mlx.nn as nn
 from mlx.utils import tree_flatten
+from typing import Dict
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+
 
 logging.basicConfig(level=logging.INFO, filename="train.log", filemode="w")
 
@@ -47,12 +50,33 @@ class ModelForTokenClassification(nn.Module):
 
 
 def compute_loss(logits: mx.array, y: mx.array) -> float:
-    logits_flatten = logits.flatten()
-    y_flatten = y.flatten()
+    # st = time.time()
+    logits = np.array(logits)
+    y = np.array(y)
 
-    index_to_check = [idx for idx, element in enumerate(
-        y_flatten) if element == -100]
-    return mlx.nn.losses.cross_entropy(logits_flatten[index_to_check], y_flatten[index_to_check]).mean()
+    mask = y != -100
+
+    # Apply the mask to both logits and y
+    valid_logits = logits[mask]
+    valid_labels = y[mask]
+    loss = mlx.nn.losses.cross_entropy(
+        mx.array(valid_logits, dtype=mx.bfloat16), mx.array(valid_labels)).mean()
+    # et = time.time()
+    # print(" Compute Loss :: ", (et-st), " seconds")
+    return loss
+
+    # st = time.time()
+    # logits_flatten = logits.flatten()
+    # y_flatten = y.flatten()
+
+    # index_to_check = [idx for idx, element in enumerate(
+    #     y_flatten) if element == -100]
+
+    # loss = mlx.nn.losses.cross_entropy(
+    #     logits_flatten[index_to_check], y_flatten[index_to_check]).mean()
+    # et = time.time()
+    # print(" Compute Loss :: ", (et-st), " seconds")
+    # return loss
 
 
 def loss_function(model, x: mx.array, y: mx.array) -> mx.array:
@@ -60,7 +84,8 @@ def loss_function(model, x: mx.array, y: mx.array) -> mx.array:
     return compute_loss(logits, y)
 
 
-def get_validation_loss(model: ModelForTokenClassification, validation_dataset: Dataset) -> mx.array:
+def get_validation_loss_and_metric(model: ModelForTokenClassification, validation_dataset: Dataset) -> Dict:
+    print("**** Computing Validation Loss ****")
     model.eval()
     total_validation_loss = 0
     for i in range(0, len(validation_dataset), batch_size):
@@ -74,13 +99,14 @@ def get_validation_loss(model: ModelForTokenClassification, validation_dataset: 
             test_slice[key] = mx.array(
                 [mx.array(array) for array in test_slice[key]])
 
-        output = model(test_slice)
-        test_loss = compute_loss(output, test_labels)
-        total_validation_loss += test_loss
+        total_validation_loss += loss_function(model,
+                                               test_slice, test_labels).tolist()
+
     return total_validation_loss
 
 
 if __name__ == "__main__":
+
     print("**** Training ****")
 
     train_dataset = Dataset.load_from_disk("./hf_train_ner_dataset")
@@ -97,6 +123,7 @@ if __name__ == "__main__":
     epoch_iterator = tqdm(iterable=range(num_epochs),
                           total=num_epochs, desc="Epochs")
     for epoch in epoch_iterator:
+        print("Epoch :: ", epoch, " Processing!")
         train_loss_for_epoch = 0
         validation_loss_for_epoch = 0
         train_batch_iterator = tqdm(range(0, len(train_dataset), batch_size), total=len(
@@ -104,7 +131,6 @@ if __name__ == "__main__":
         model.train()
         model.bert_model.freeze()
         for i in train_batch_iterator:
-            # st = time.time()
             slice = train_dataset[i: i + batch_size]
 
             if "words" in slice.keys():
@@ -114,23 +140,33 @@ if __name__ == "__main__":
 
             labels = slice.pop("labels")
             for key in slice.keys():
-                slice[key] = mx.array([mx.array(array)
+                slice[key] = mx.array([mx.array(array,)
                                       for array in slice[key]])
 
-            labels = mx.array([mx.array(array) for array in labels])
+            labels = mx.array([mx.array(array)
+                              for array in labels])
             loss_value, grads = loss_and_grad_fn(model, slice, labels)
             optimizer.update(model, grads)
-            train_loss_for_epoch += loss_value
+            train_loss_for_epoch += loss_value.tolist()
+        print("Training Loss :: ", train_loss_for_epoch)
+        # model.eval()
+        # for i in range(0, len(validation_dataset), batch_size):
+        #     test_slice = validation_dataset[i: i + batch_size]
+        #     test_slice.pop("words")
+        #     test_slice.pop("ner_labels")
 
-            # et = time.time()
-            # train_batch_iterator.set_postfix(loss=epoch_loss.tolist())
+        #     test_labels = test_slice.pop("labels")
+        #     test_labels = mx.array([mx.array(array) for array in test_labels])
+        #     for key in test_slice.keys():
+        #         test_slice[key] = mx.array(
+        #             [mx.array(array) for array in test_slice[key]])
 
-        validation_loss_for_epoch += get_validation_loss(
-            model, validation_dataset)
-
-        # epoch_iterator.set_postfix(loss=epoch_loss.tolist())
-        logging.info(f"\tEpoch: {epoch} | train_loss: {
-                     train_loss_for_epoch.tolist()} | val_loss: {validation_loss_for_epoch.tolist()}")
+        #     validation_loss_for_epoch += loss_function(model,
+        #                                                test_slice, test_labels).tolist()
+        # print("validation_loss_for_epoch :: ", validation_loss_for_epoch)
+        # logging.info(f"\tEpoch: {epoch} | train_loss: {
+        #              train_loss_for_epoch.tolist()} | val_loss: {validation_loss_for_epoch.tolist()}")
+        break
 
     flat_params = tree_flatten(model.parameters())
     mx.savez("pii_english_mlx_model.npz", **dict(flat_params))
