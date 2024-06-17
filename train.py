@@ -15,6 +15,8 @@ from mlx.optimizers import Adam
 from tqdm import tqdm
 import time
 import logging
+import mlx.nn as nn
+from mlx.utils import tree_flatten
 
 logging.basicConfig(level=logging.INFO, filename="train.log", filemode="w")
 
@@ -63,7 +65,7 @@ if __name__ == "__main__":
 
     train_dataset = Dataset.load_from_disk("./hf_train_ner_dataset")
 
-    test_dataset = Dataset.load_from_disk("./hf_test_ner_dataset")
+    validation_dataset = Dataset.load_from_disk("./hf_test_ner_dataset")
     model: ModelForTokenClassification = ModelForTokenClassification(
         num_labels=21)
 
@@ -98,14 +100,13 @@ if __name__ == "__main__":
             loss_value, grads = loss_and_grad_fn(model, slice, labels)
             optimizer.update(model, grads)
             epoch_loss += loss_value
+
             # et = time.time()
             # train_batch_iterator.set_postfix(loss=epoch_loss.tolist())
-            break
-
         model.eval()
         validation_loss = 0
-        for i in range(0, len(test_dataset), batch_size):
-            test_slice = test_dataset[i: i + batch_size]
+        for i in range(0, len(validation_dataset), batch_size):
+            test_slice = validation_dataset[i: i + batch_size]
             test_slice.pop("words")
             test_slice.pop("ner_labels")
 
@@ -118,8 +119,9 @@ if __name__ == "__main__":
             output = model(test_slice)
             test_loss = compute_loss(output, test_labels)
             validation_loss += test_loss
-            break
         # epoch_iterator.set_postfix(loss=epoch_loss.tolist())
         logging.info(f"\tEpoch: {epoch} | train_loss: {
                      epoch_loss.tolist()} | val_loss: {validation_loss.tolist()}")
-        break
+
+    flat_params = tree_flatten(model.parameters())
+    mx.savez("pii_english_mlx_model.npz", **dict(flat_params))
