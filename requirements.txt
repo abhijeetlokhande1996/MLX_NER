@@ -1,6 +1,9 @@
-tqdm
-torch
-datasets
-mlx
-transformers
-numpy
+tqdm~=4.66.4
+torch~=2.3.1
+datasets~=2.20.0
+mlx~=0.15.1
+transformers~=4.41.2
+numpy~=2.0.0
+uv
+
+scikit-learn~=1.5.0
