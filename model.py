@@ -4,8 +4,9 @@ from typing import List, Optional, Tuple
 
 import mlx.core as mx
 import mlx.nn as nn
-from mlx.utils import tree_unflatten
 from transformers import AutoConfig, AutoTokenizer, PreTrainedTokenizerBase
+
+from settings import BASE_DIR
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -121,6 +122,8 @@ class Bert(nn.Module):
 def load_model(
     bert_model: str, weights_path: str
 ) -> Tuple[Bert, PreTrainedTokenizerBase]:
+    # Construct the absolute path to the weights file
+    weights_path = str(BASE_DIR / weights_path)
     if not Path(weights_path).exists():
         raise ValueError(f"No model weights found in {weights_path}")
 
