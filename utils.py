@@ -24,8 +24,12 @@ def align_labels_with_tokens(labels, word_ids, text_labels):
 
 def tokenize_and_align_labels(examples, tokenizer, label2id):
     tokenized_inputs = tokenizer(
-        examples["words"], truncation=True, is_split_into_words=True, max_length=512, padding=True,
-        return_tensors="np"
+        examples["words"],
+        truncation=True,
+        is_split_into_words=True,
+        max_length=512,
+        padding=True,
+        return_tensors="np",
     )
 
     all_labels = []
@@ -43,8 +47,9 @@ def tokenize_and_align_labels(examples, tokenizer, label2id):
     new_labels = []
     for i, labels in enumerate(all_labels):
         word_ids = tokenized_inputs.word_ids(i)
-        new_labels.append(align_labels_with_tokens(
-            labels, word_ids, all_labels_names[i]))
+        new_labels.append(
+            align_labels_with_tokens(labels, word_ids, all_labels_names[i])
+        )
 
     tokenized_inputs["labels"] = new_labels
     return tokenized_inputs

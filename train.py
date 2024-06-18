@@ -1,21 +1,20 @@
 import mlx.core
-import torch
 import numpy as np
-from pathlib import Path
+
 import mlx.core as mx
 from mlx.core import array
 
-from model import Bert, load_model
-from datasets import DatasetDict, Dataset
+from model import load_model
+from datasets import Dataset
 import mlx
 from mlx.optimizers import Adam
 from tqdm import tqdm
-import time
+
 import logging
 import mlx.nn as nn
 from mlx.utils import tree_flatten
-from typing import Dict
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from typing import Dict, Union
+
 
 logging.basicConfig(level=logging.INFO, filename="train.log", filemode="w")
 
@@ -60,26 +59,30 @@ def compute_loss(logits: mx.array, y: mx.array) -> array:
     return loss
 
 
-def loss_function(token_classifier: ModelForTokenClassification, x: mx.array, y: mx.array) -> mx.array:
+def loss_function(
+    token_classifier: ModelForTokenClassification, x: Union[mx.array, Dict], y: mx.array
+) -> mx.array:
     logits = token_classifier(x)
     return compute_loss(logits, y)
 
 
 def get_validation_loss_and_metric(
-        token_classifier: ModelForTokenClassification, validation_dataset: Dataset
-) -> Dict:
+    token_classifier: ModelForTokenClassification, validation_data: Dataset
+) -> int:
     print("**** Computing Validation Loss ****")
     token_classifier.eval()
     total_validation_loss = 0
-    for i in range(0, len(validation_dataset), batch_size):
-        test_slice = validation_dataset[i: i + batch_size]
+    for idx in range(0, len(validation_data), batch_size):
+        test_slice = validation_data[idx : idx + batch_size]
         test_slice.pop("words")
         test_slice.pop("ner_labels")
 
         test_labels = test_slice.pop("labels")
         test_labels = mx.array([mx.array(array) for array in test_labels])
-        for key in test_slice.keys():
-            test_slice[key] = mx.array([mx.array(array) for array in test_slice[key]])
+        for test_key in test_slice.keys():
+            test_slice[test_key] = mx.array(
+                [mx.array(array) for array in test_slice[test_key]]
+            )
 
         total_validation_loss += loss_function(model, test_slice, test_labels).tolist()
 
@@ -113,32 +116,32 @@ if __name__ == "__main__":
         model.train()
         model.bert_model.freeze()
         for i in train_batch_iterator:
-            slice = train_dataset[i: i + batch_size]
+            data_slice = train_dataset[i : i + batch_size]
 
-            if "words" in slice.keys():
-                slice.pop("words")
-            if "ner_labels" in slice.keys():
-                slice.pop("ner_labels")
+            if "words" in data_slice.keys():
+                data_slice.pop("words")
+            if "ner_labels" in data_slice.keys():
+                data_slice.pop("ner_labels")
 
-            labels = slice.pop("labels")
-            for key in slice.keys():
-                slice[key] = mx.array(
+            labels = data_slice.pop("labels")
+            for key in data_slice.keys():
+                data_slice[key] = mx.array(
                     [
                         mx.array(
                             array,
                         )
-                        for array in slice[key]
+                        for array in data_slice[key]
                     ]
                 )
 
             labels = mx.array([mx.array(array) for array in labels])
-            loss_value, grads = loss_and_grad_fn(model, slice, labels)
+            loss_value, grads = loss_and_grad_fn(model, data_slice, labels)
             optimizer.update(model, grads)
             train_loss_for_epoch += loss_value.tolist()
         print("Training Loss :: ", train_loss_for_epoch)
         # model.eval()
-        # for i in range(0, len(validation_dataset), batch_size):
-        #     test_slice = validation_dataset[i: i + batch_size]
+        # for i in range(0, len(validation_data), batch_size):
+        #     test_slice = validation_data[i: i + batch_size]
         #     test_slice.pop("words")
         #     test_slice.pop("ner_labels")
 
