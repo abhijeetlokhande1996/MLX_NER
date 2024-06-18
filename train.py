@@ -3,6 +3,8 @@ import torch
 import numpy as np
 from pathlib import Path
 import mlx.core as mx
+from mlx.core import array
+
 from model import Bert, load_model
 from datasets import DatasetDict, Dataset
 import mlx
@@ -14,7 +16,6 @@ import mlx.nn as nn
 from mlx.utils import tree_flatten
 from typing import Dict
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-
 
 logging.basicConfig(level=logging.INFO, filename="train.log", filemode="w")
 
@@ -44,8 +45,7 @@ class ModelForTokenClassification(nn.Module):
         return logits
 
 
-def compute_loss(logits: mx.array, y: mx.array) -> float:
-    # st = time.time()
+def compute_loss(logits: mx.array, y: mx.array) -> array:
     logits = np.array(logits)
     y = np.array(y)
 
@@ -57,37 +57,22 @@ def compute_loss(logits: mx.array, y: mx.array) -> float:
     loss = mlx.nn.losses.cross_entropy(
         mx.array(valid_logits, dtype=mx.bfloat16), mx.array(valid_labels)
     ).mean()
-    # et = time.time()
-    # print(" Compute Loss :: ", (et-st), " seconds")
     return loss
 
-    # st = time.time()
-    # logits_flatten = logits.flatten()
-    # y_flatten = y.flatten()
 
-    # index_to_check = [idx for idx, element in enumerate(
-    #     y_flatten) if element == -100]
-
-    # loss = mlx.nn.losses.cross_entropy(
-    #     logits_flatten[index_to_check], y_flatten[index_to_check]).mean()
-    # et = time.time()
-    # print(" Compute Loss :: ", (et-st), " seconds")
-    # return loss
-
-
-def loss_function(model, x: mx.array, y: mx.array) -> mx.array:
-    logits = model(x)
+def loss_function(token_classifier: ModelForTokenClassification, x: mx.array, y: mx.array) -> mx.array:
+    logits = token_classifier(x)
     return compute_loss(logits, y)
 
 
 def get_validation_loss_and_metric(
-    model: ModelForTokenClassification, validation_dataset: Dataset
+        token_classifier: ModelForTokenClassification, validation_dataset: Dataset
 ) -> Dict:
     print("**** Computing Validation Loss ****")
-    model.eval()
+    token_classifier.eval()
     total_validation_loss = 0
     for i in range(0, len(validation_dataset), batch_size):
-        test_slice = validation_dataset[i : i + batch_size]
+        test_slice = validation_dataset[i: i + batch_size]
         test_slice.pop("words")
         test_slice.pop("ner_labels")
 
@@ -128,7 +113,7 @@ if __name__ == "__main__":
         model.train()
         model.bert_model.freeze()
         for i in train_batch_iterator:
-            slice = train_dataset[i : i + batch_size]
+            slice = train_dataset[i: i + batch_size]
 
             if "words" in slice.keys():
                 slice.pop("words")
