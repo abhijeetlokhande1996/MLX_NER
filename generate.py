@@ -72,7 +72,7 @@ def generate_tokenised_dataset(json_file_path: Path):
         data = json.load(fp)
 
     train_data, test_data = train_test_split(
-        data, test_size=0.2, random_state=42, shuffle=True
+        data, test_size=0.02, random_state=42, shuffle=True
     )
 
     if not check_first_order_pii_is_present(train_data):
@@ -91,7 +91,7 @@ def generate_tokenised_dataset(json_file_path: Path):
             label_id += 1
             label2id[f"I-{entity}"] = label_id
 
-    print(label2id)
+    label2id = dict(sorted(label2id.items(), key=lambda item: item[1]))
     print("Num labels", len(label2id))
     train_hf_dataset = Dataset.from_list(train_data)
     test_hf_dataset = Dataset.from_list(test_data)
