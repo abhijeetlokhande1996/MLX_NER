@@ -1,0 +1,4 @@
+*.npz
+*.json
+*.log
+*.arrow
