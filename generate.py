@@ -122,6 +122,8 @@ if __name__ == "__main__":
     json_path = Path(".").resolve() / "pii_training_data.json"
     train_dataset, test_dataset = generate_tokenised_dataset(
         json_file_path=json_path)
-    train_dataset.save_to_disk("hf_train_ner_dataset")
-    test_dataset.save_to_disk("hf_test_ner_dataset")
+    # train_dataset.save_to_disk("hf_train_ner_dataset")
+    # test_dataset.save_to_disk("hf_test_ner_dataset")
+    DatasetDict({"train": train_dataset, "test": test_dataset}
+                ).save_to_disk("./hf_ner_dataset")
     print("*** Done ***")
