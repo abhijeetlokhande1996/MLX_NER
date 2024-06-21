@@ -1,9 +1,9 @@
 import json
-from datasets import Dataset
+from datasets import Dataset, load_from_disk
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer, AutoModelForTokenClassification
 from transformers import DataCollatorForTokenClassification
-
+from torch.utils.data import DataLoader
 from utils import tokenize_and_align_labels
 import torch
 
@@ -17,19 +17,19 @@ class ModelForTokenClassification(nn.Module):
             "distilbert/distilbert-base-uncased")
         self.bert_tokenizer = AutoTokenizer.from_pretrained(
             "distilbert/distilbert-base-uncased")
-        self.data_collator = DataCollatorForTokenClassification(
-            self.bert_tokenizer)
         self.liner = nn.Linear(self.bert_model.config.dim, self.num_labels)
 
     def forward(self, x):
-        tokenized_inputs = tokenize_and_align_labels(
-            examples=x, tokenizer=self.bert_tokenizer, label2id=self.label2id, return_tensors="pt")
 
-        labels = tokenized_inputs.pop("labels")
+        # tokenized_inputs = tokenize_and_align_labels(
+        #     examples=x, tokenizer=self.bert_tokenizer, label2id=self.label2id, return_tensors="pt")
 
-        print(tokenized_inputs.keys())
-        output = self.bert_model(**tokenized_inputs)
-        print("Shape :: ", output.last_hidden_state.shape)
+        # for key in tokenized_inputs.keys():
+        #     tokenized_inputs[key] = self.data_collator(
+        #         [element for element in tokenized_inputs[key]])
+
+        # labels = tokenized_inputs.pop("labels")
+        # output = self.bert_model(**tokenized_inputs)
         pass
 
 
@@ -40,15 +40,33 @@ if __name__ == "__main__":
     torch.set_default_device("mps")
     model: ModelForTokenClassification = ModelForTokenClassification(
         num_labels=len(label2id), label2id=label2id)
+    data_collator = DataCollatorForTokenClassification(model.bert_tokenizer)
 
-    train_dataset = Dataset.load_from_disk("./hf_train_ner_dataset")
+    raw_datasets = load_from_disk("./hf_ner_dataset")
 
-    validation_dataset = Dataset.load_from_disk("./hf_test_ner_dataset")
+    tokenized_datasets = raw_datasets.map(
+        lambda x: tokenize_and_align_labels(
+            x, model.bert_tokenizer, model.label2id),
+        batched=True,
+        remove_columns=raw_datasets["train"].column_names)
 
-    EPOCH = 1
-    BATCH_SIZE = 8
-    for epoch in range(EPOCH):
-        for i in range(0, len(train_dataset), BATCH_SIZE):
-            data_slice = train_dataset[i: i + BATCH_SIZE]
-            model(data_slice)
-            break
+    train_dataloader = DataLoader(
+        tokenized_datasets["train"],
+        shuffle=True,
+        batch_size=8,
+        collate_fn=data_collator
+    )
+    test_dataloader = DataLoader(
+        tokenized_datasets["test"],
+        shuffle=True,
+        batch_size=8,
+        collate_fn=data_collator
+    )
+
+    # EPOCH = 1
+    # BATCH_SIZE = 8
+    # for epoch in range(EPOCH):
+    #     for i in range(0, len(train_dataset), BATCH_SIZE):
+    #         data_slice = train_dataset[i: i + BATCH_SIZE]
+    #         model(data_slice)
+    #         break
