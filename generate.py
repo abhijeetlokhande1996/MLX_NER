@@ -92,32 +92,36 @@ def generate_tokenised_dataset(json_file_path: Path):
             label2id[f"I-{entity}"] = label_id
 
     label2id = dict(sorted(label2id.items(), key=lambda item: item[1]))
+    with open("label2id.json", "w") as fp:
+        json.dump(label2id, fp, indent=3)
+        print("*** Label2Id dumped ***")
     print("Num labels", len(label2id))
     train_hf_dataset = Dataset.from_list(train_data)
     test_hf_dataset = Dataset.from_list(test_data)
 
-    bert_model, bert_tokenizer = load_model(
-        "bert-base-uncased", "weights/bert-base-uncased.npz"
-    )
+    # bert_model, bert_tokenizer = load_model(
+    #     "bert-base-uncased", "weights/bert-base-uncased.npz"
+    # )
 
-    train_hf_dataset = train_hf_dataset.map(
-        lambda batch: tokenize_and_align_labels(batch, bert_tokenizer, label2id),
-        batched=True,
-        batch_size=32,
-    )
+    # train_hf_dataset = train_hf_dataset.map(
+    #     lambda batch: tokenize_and_align_labels(batch, bert_tokenizer, label2id),
+    #     batched=True,
+    #     batch_size=32,
+    # )
 
-    test_hf_dataset = test_hf_dataset.map(
-        lambda batch: tokenize_and_align_labels(batch, bert_tokenizer, label2id),
-        batched=True,
-        batch_size=32,
-    )
+    # test_hf_dataset = test_hf_dataset.map(
+    #     lambda batch: tokenize_and_align_labels(batch, bert_tokenizer, label2id),
+    #     batched=True,
+    #     batch_size=32,
+    # )
     return train_hf_dataset, test_hf_dataset
 
 
 if __name__ == "__main__":
     print("*** Generating Dataset ***")
     json_path = Path(".").resolve() / "pii_training_data.json"
-    train_dataset, test_dataset = generate_tokenised_dataset(json_file_path=json_path)
+    train_dataset, test_dataset = generate_tokenised_dataset(
+        json_file_path=json_path)
     train_dataset.save_to_disk("hf_train_ner_dataset")
     test_dataset.save_to_disk("hf_test_ner_dataset")
     print("*** Done ***")

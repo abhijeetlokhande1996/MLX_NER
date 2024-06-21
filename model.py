@@ -62,7 +62,8 @@ class TransformerEncoder(nn.Module):
 class BertEmbeddings(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.word_embeddings = nn.Embedding(
+            config.vocab_size, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(
             config.type_vocab_size, config.hidden_size
         )
@@ -126,7 +127,7 @@ def load_model(
     if not Path(weights_path).exists():
         raise ValueError(f"No model weights found in {weights_path}")
 
-    config = AutoConfig.from_pretrained(bert_model, torch_dtype="bfloat16")
+    config = AutoConfig.from_pretrained(bert_model, torch_dtype="float16")
 
     # create and update the model
     model = Bert(config)
@@ -147,7 +148,8 @@ def run(bert_model: str, mlx_model: str, batch: List[str]):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the BERT model using MLX.")
+    parser = argparse.ArgumentParser(
+        description="Run the BERT model using MLX.")
     parser.add_argument(
         "--bert-model",
         type=str,
