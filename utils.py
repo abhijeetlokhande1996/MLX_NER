@@ -22,13 +22,11 @@ def align_labels_with_tokens(labels, word_ids, text_labels):
     return new_labels
 
 
-def tokenize_and_align_labels(examples, tokenizer, label2id, return_tensors="np"):
+def tokenize_and_align_labels(examples, tokenizer, label2id,  return_tensors="np"):
     tokenized_inputs = tokenizer(
         examples["words"],
-        truncation=True,
         is_split_into_words=True,
-        # max_length=512,
-        padding=True,
+        truncation=True,
         return_tensors=return_tensors,
     )
 
