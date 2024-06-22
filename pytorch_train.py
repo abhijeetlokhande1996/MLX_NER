@@ -178,7 +178,28 @@ if __name__ == "__main__":
             info_string = f"Train Step: {train_step}\t\tBatch: {batch_idx}\t\tLoss: {
                 loss.item()}\t\tPrecision: {precision}\t\tRecall: {recall}\t\tF1: {f1}"
             logging.info(info_string)
-
-        logging.info("-"*30)
+        logging.info("-"*100)
 
         model.eval()
+
+        for test_step, batch in enumerate(test_dataloader):
+            batch = {k: v.to(device) for k, v in batch.items()}
+            labels = batch.pop("labels").long()
+
+            with torch.no_grad():
+                logits = model(batch)
+
+            true_labels, true_predictions = post_process(
+                logits, labels, model.id2label)
+
+            # metric.add_batch(predictions=true_predictions, references=true_labels)
+            precision = precision_score(
+                true_predictions, true_labels, average="weighted")
+            recall = recall_score(
+                true_predictions, true_labels, average="weighted")
+            f1 = f1_score(true_predictions, true_labels, average="weighted")
+
+            info_string = f"Test Step: {test_step}\t\tBatch: {batch_idx}\t\tLoss: {
+                loss.item()}\t\tPrecision: {precision}\t\tRecall: {recall}\t\tF1: {f1}"
+            logging.info(info_string)
+            break
