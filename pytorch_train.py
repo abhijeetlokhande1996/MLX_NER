@@ -10,6 +10,7 @@ from torch.optim import AdamW
 from tqdm import tqdm
 from typing import List, Dict
 import logging
+import evaluate
 
 
 logging.basicConfig(
@@ -51,6 +52,8 @@ if __name__ == "__main__":
     with open("label2id.json", "r") as fp:
         label2id = json.load(fp)
 
+    metric = evaluate.load("seqeval")
+
     BATCH_SIZE = 16
     torch.set_default_device("mps")
     device = torch.device("mps")
@@ -64,7 +67,8 @@ if __name__ == "__main__":
     raw_datasets = load_from_disk("./hf_ner_dataset")
 
     tokenized_datasets = raw_datasets.map(
-        lambda x: tokenize_and_align_labels(x, model.bert_tokenizer, model.label2id),
+        lambda x: tokenize_and_align_labels(
+            x, model.bert_tokenizer, model.label2id),
         batched=True,
         remove_columns=["words", "ner_labels"],
     )
@@ -88,7 +92,7 @@ if __name__ == "__main__":
         generator=generator,
     )
 
-    num_train_epochs = 3
+    num_train_epochs = 2
     num_update_steps_per_epoch = len(train_dataloader)
     num_training_steps = num_train_epochs * num_update_steps_per_epoch
 
@@ -101,23 +105,23 @@ if __name__ == "__main__":
     )
     progress_bar = tqdm(range(num_training_steps))
     criterion = nn.CrossEntropyLoss(ignore_index=-100, reduction="mean")
-    for i in range(num_train_epochs):
+    for train_step in range(num_train_epochs):
         model.train()
-        for batch in train_dataloader:
+        for batch_idx, batch in enumerate(train_dataloader):
             # Ensure all tensors in batch are on the correct device
             batch = {k: v.to(device) for k, v in batch.items()}
             labels = batch.pop("labels").long()
 
             logits = model(batch)
-            loss = criterion(logits.view(-1, logits.shape[-1]), labels.view(-1))
+            loss = criterion(
+                logits.view(-1, logits.shape[-1]), labels.view(-1))
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             lr_scheduler.step()
             progress_bar.update(1)
-
-            break
-        break
+            logging.info(f"Train Step: {train_step}\t\tBatch: {
+                         batch_idx}\t\tLoss: {loss.item()}")
 
         # print(batch.shape)
