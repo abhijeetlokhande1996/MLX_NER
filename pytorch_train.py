@@ -55,8 +55,8 @@ def post_process(predictions, labels, id2label):
     true_labels = [[id2label[l] for l in label if l != -100]
                    for label in labels]
 
-    true_predictions = [[id2label[p] for p in pred]
-                        for pred in predictions.argmax(axis=-1)]
+    true_predictions = [[id2label[p] for p, l in zip(pred, label) if l != -100]
+                        for pred, label in zip(predictions.argmax(axis=-1), labels)]
     return true_labels, true_predictions
 
 
@@ -129,8 +129,11 @@ if __name__ == "__main__":
             loss = criterion(
                 logits.view(-1, logits.shape[-1]), labels.view(-1))
 
-            post_process(logits, labels, model.id2label)
+            true_labels, true_predictions = post_process(
+                logits, labels, model.id2label)
 
+            metric.add_batch(predictions=true_predictions,
+                             references=true_labels)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -138,6 +141,12 @@ if __name__ == "__main__":
             progress_bar.update(1)
             logging.info(f"Train Step: {train_step}\t\tBatch: {
                          batch_idx}\t\tLoss: {loss.item()}")
+        logging.info(f"-"*100)
+        results = metric.compute()
+        accuracy = results.get("overall_accuracy")
+        f1_score = results.get("overall_f1")
 
-            break
+        logging.info(f"Train Epoch: {train_step}\t\tAccuracy: {
+                     accuracy}\t\tF1: {f1_score}")
+
         # print(batch.shape)
