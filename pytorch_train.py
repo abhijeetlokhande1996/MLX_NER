@@ -1,3 +1,4 @@
+import numpy as np
 import json
 from datasets import Dataset, load_from_disk
 import torch.nn as nn
@@ -11,6 +12,10 @@ from tqdm import tqdm
 from typing import List, Dict
 import logging
 import evaluate
+import os
+from seqeval.metrics import f1_score, precision_score, recall_score
+
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
 
 
 logging.basicConfig(
@@ -66,7 +71,7 @@ if __name__ == "__main__":
 
     metric = evaluate.load("seqeval")
 
-    BATCH_SIZE = 16
+    BATCH_SIZE = 32
     torch.set_default_device("mps")
     device = torch.device("mps")
 
@@ -104,7 +109,7 @@ if __name__ == "__main__":
         generator=generator,
     )
 
-    num_train_epochs = 2
+    num_train_epochs = 5
     num_update_steps_per_epoch = len(train_dataloader)
     num_training_steps = num_train_epochs * num_update_steps_per_epoch
 
@@ -116,7 +121,32 @@ if __name__ == "__main__":
         num_training_steps=num_training_steps,
     )
     progress_bar = tqdm(range(num_training_steps))
-    criterion = nn.CrossEntropyLoss(ignore_index=-100, reduction="mean")
+    weights = torch.tensor([
+        0.1,  # O
+        1.0,  # B-FIRSTNAME
+        1.0,  # I-FIRSTNAME
+        1.0,  # B-MIDDLENAME
+        1.0,  # I-MIDDLENAME
+        1.0,  # B-LASTNAME
+        1.0,  # I-LASTNAME
+        1.0,  # B-SSN
+        1.0,  # I-SSN
+        1.0,  # B-ACCOUNTNUMBER
+        1.0,  # I-ACCOUNTNUMBER
+        1.0,  # B-CREDITCARDNUMBER
+        1.0,  # I-CREDITCARDNUMBER
+        1.0,  # B-DOB
+        1.0,  # I-DOB
+        1.0,  # B-EMAIL
+        1.0,  # I-EMAIL
+        1.0,  # B-PASSWORD
+        1.0,  # I-PASSWORD
+        1.0,  # B-PHONENUMBER
+        1.0   # I-PHONENUMBER
+    ])
+    assert len(weights) == len(label2id)
+    criterion = nn.CrossEntropyLoss(
+        ignore_index=-100, reduction="mean", weight=weights)
     for train_step in range(num_train_epochs):
         model.train()
         for batch_idx, batch in enumerate(train_dataloader):
@@ -132,21 +162,23 @@ if __name__ == "__main__":
             true_labels, true_predictions = post_process(
                 logits, labels, model.id2label)
 
-            metric.add_batch(predictions=true_predictions,
-                             references=true_labels)
+            # metric.add_batch(predictions=true_predictions, references=true_labels)
+            precision = precision_score(
+                true_predictions, true_labels, average="weighted")
+            recall = recall_score(
+                true_predictions, true_labels, average="weighted")
+            f1 = f1_score(true_predictions, true_labels, average="weighted")
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             lr_scheduler.step()
             progress_bar.update(1)
-            logging.info(f"Train Step: {train_step}\t\tBatch: {
-                         batch_idx}\t\tLoss: {loss.item()}")
-        logging.info(f"-"*100)
-        results = metric.compute()
-        accuracy = results.get("overall_accuracy")
-        f1_score = results.get("overall_f1")
 
-        logging.info(f"Train Epoch: {train_step}\t\tAccuracy: {
-                     accuracy}\t\tF1: {f1_score}")
+            info_string = f"Train Step: {train_step}\t\tBatch: {batch_idx}\t\tLoss: {
+                loss.item()}\t\tPrecision: {precision}\t\tRecall: {recall}\t\tF1: {f1}"
+            logging.info(info_string)
 
-        # print(batch.shape)
+        logging.info("-"*30)
+
+        model.eval()
