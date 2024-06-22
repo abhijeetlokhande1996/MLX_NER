@@ -27,6 +27,7 @@ class ModelForTokenClassification(nn.Module):
         super().__init__()
         self.num_labels = num_labels
         self.label2id = label2id
+        self.id2label = {v: k for k, v in label2id.items()}
         self.bert_model = AutoModel.from_pretrained(
             "distilbert/distilbert-base-uncased"
         )
@@ -45,7 +46,18 @@ class ModelForTokenClassification(nn.Module):
         output = self.liner1(output.last_hidden_state)
         return output
 
-        pass
+
+def post_process(predictions, labels, id2label):
+    predictions = predictions.detach().cpu().clone().numpy()
+    labels = labels.detach().cpu().clone().numpy()
+
+    # Remove ignored index (special tokens)
+    true_labels = [[id2label[l] for l in label if l != -100]
+                   for label in labels]
+
+    true_predictions = [[id2label[p] for p in pred]
+                        for pred in predictions.argmax(axis=-1)]
+    return true_labels, true_predictions
 
 
 if __name__ == "__main__":
@@ -113,8 +125,11 @@ if __name__ == "__main__":
             labels = batch.pop("labels").long()
 
             logits = model(batch)
+
             loss = criterion(
                 logits.view(-1, logits.shape[-1]), labels.view(-1))
+
+            post_process(logits, labels, model.id2label)
 
             optimizer.zero_grad()
             loss.backward()
@@ -124,4 +139,5 @@ if __name__ == "__main__":
             logging.info(f"Train Step: {train_step}\t\tBatch: {
                          batch_idx}\t\tLoss: {loss.item()}")
 
+            break
         # print(batch.shape)
