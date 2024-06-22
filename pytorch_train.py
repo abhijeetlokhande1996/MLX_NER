@@ -40,7 +40,7 @@ class ModelForTokenClassification(nn.Module):
             "distilbert/distilbert-base-uncased"
         )
         self.liner1 = nn.Linear(self.bert_model.config.dim, self.num_labels)
-        self.freeze_bert_model()
+        # self.freeze_bert_model()
 
     def freeze_bert_model(self):
         for param in self.bert_model.parameters():
