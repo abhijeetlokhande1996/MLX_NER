@@ -18,6 +18,7 @@ from mlx.utils import tree_flatten
 from typing import Dict, Union, Any, Tuple
 from sklearn.metrics import f1_score
 from utils import tokenize_and_align_labels
+
 logging.basicConfig(
     level=logging.INFO,
     filename="train.log",
@@ -39,35 +40,36 @@ class ModelForTokenClassification(nn.Module):
         self.dropout = nn.Dropout(0.1)
         self.linear1 = nn.Linear(768, 100)
         self.linear2 = nn.Linear(100, num_labels)
-        self.label_weights = weights = mx.array([
-            0.1,  # O
-            1.0,  # B-FIRSTNAME
-            1.0,  # I-FIRSTNAME
-            1.0,  # B-MIDDLENAME
-            1.0,  # I-MIDDLENAME
-            1.0,  # B-LASTNAME
-            1.0,  # I-LASTNAME
-            1.0,  # B-SSN
-            1.0,  # I-SSN
-            1.0,  # B-ACCOUNTNUMBER
-            1.0,  # I-ACCOUNTNUMBER
-            1.0,  # B-CREDITCARDNUMBER
-            1.0,  # I-CREDITCARDNUMBER
-            1.0,  # B-DOB
-            1.0,  # I-DOB
-            1.0,  # B-EMAIL
-            1.0,  # I-EMAIL
-            1.0,  # B-PASSWORD
-            1.0,  # I-PASSWORD
-            1.0,  # B-PHONENUMBER
-            1.0,  # I-PHONENUMBER
-        ])
+        self.label_weights = weights = mx.array(
+            [
+                0.1,  # O
+                1.0,  # B-FIRSTNAME
+                1.0,  # I-FIRSTNAME
+                1.0,  # B-MIDDLENAME
+                1.0,  # I-MIDDLENAME
+                1.0,  # B-LASTNAME
+                1.0,  # I-LASTNAME
+                1.0,  # B-SSN
+                1.0,  # I-SSN
+                1.0,  # B-ACCOUNTNUMBER
+                1.0,  # I-ACCOUNTNUMBER
+                1.0,  # B-CREDITCARDNUMBER
+                1.0,  # I-CREDITCARDNUMBER
+                1.0,  # B-DOB
+                1.0,  # I-DOB
+                1.0,  # B-EMAIL
+                1.0,  # I-EMAIL
+                1.0,  # B-PASSWORD
+                1.0,  # I-PASSWORD
+                1.0,  # B-PHONENUMBER
+                1.0,  # I-PHONENUMBER
+            ]
+        )
 
     def __call__(self, examples) -> mx.array:
         # tokens = self.bert_tokenizer(words, return_tensors="np", padding=True, is_split_into_words=True, truncation=True)
 
-        tokens = tokenize_and_align_labels(
-            examples, self.bert_tokenizer, self.label2id)
+        tokens = tokenize_and_align_labels(examples, self.bert_tokenizer, self.label2id)
         labels = tokens.pop("labels")
         tokens = {key: mx.array(v) for key, v in tokens.items()}
 
@@ -90,7 +92,10 @@ def compute_loss(logits: mx.array, y: mx.array, weights: mx.array) -> array:
     valid_logits = logits[mask]
     valid_labels = y[mask]
     loss = nn.losses.cross_entropy(
-        mx.array(valid_logits), mx.array(valid_labels), reduction="mean", weights=weights
+        mx.array(valid_logits),
+        mx.array(valid_labels),
+        reduction="mean",
+        weights=weights,
     )
     return loss
 
@@ -122,8 +127,13 @@ if __name__ == "__main__":
     )
 
     raw_datasets = load_from_disk("./hf_ner_dataset")
-    tokenized_dataset = raw_datasets.map(lambda x: tokenize_and_align_labels(x, model.bert_tokenizer,
-                                                                             model.label2id, return_tensors="np"), batched=True, remove_columns=["words", "ner_labels"])
+    tokenized_dataset = raw_datasets.map(
+        lambda x: tokenize_and_align_labels(
+            x, model.bert_tokenizer, model.label2id, return_tensors="np"
+        ),
+        batched=True,
+        remove_columns=["words", "ner_labels"],
+    )
 
     """loss_and_grad_fn = nn.value_and_grad(model, loss_function)
 
