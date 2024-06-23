@@ -184,28 +184,28 @@ if __name__ == "__main__":
                 loss.item()}\t\tPrecision: {precision*100}\t\tRecall: {recall*100}\t\tF1: {f1*100}"
             logging.info(info_string)
         logging.info("--" * 100)
+    torch.save(model.state_dict(), './models/model.pth')
 
-        model.eval()
+    # model.eval()
 
-        for test_step, batch in enumerate(test_dataloader):
-            batch = {k: v.to(device) for k, v in batch.items()}
-            labels = batch.pop("labels").long()
+    # for test_step, batch in enumerate(test_dataloader):
+    #     batch = {k: v.to(device) for k, v in batch.items()}
+    #     labels = batch.pop("labels").long()
 
-            with torch.no_grad():
-                logits = model(batch)
+    #     with torch.no_grad():
+    #         logits = model(batch)
 
-            true_labels, true_predictions = post_process(
-                logits, labels, model.id2label)
+    #     true_labels, true_predictions = post_process(
+    #         logits, labels, model.id2label)
 
-            # metric.add_batch(predictions=true_predictions, references=true_labels)
-            precision = precision_score(
-                true_predictions, true_labels, average="weighted"
-            )
-            recall = recall_score(
-                true_predictions, true_labels, average="weighted")
-            f1 = f1_score(true_predictions, true_labels, average="weighted")
+    #     # metric.add_batch(predictions=true_predictions, references=true_labels)
+    #     precision = precision_score(
+    #         true_predictions, true_labels, average="weighted"
+    #     )
+    #     recall = recall_score(
+    #         true_predictions, true_labels, average="weighted")
+    #     f1 = f1_score(true_predictions, true_labels, average="weighted")
 
-            info_string = f"Test Step: {test_step}\t\tBatch: {batch_idx}\t\tPrecision: {
-                precision*100}\t\tRecall: {recall*100}\t\tF1: {f1*100}"
-            logging.info(info_string)
-            break
+    #     info_string = f"Test Step: {test_step}\t\tBatch: {batch_idx}\t\tPrecision: {
+    #         precision*100}\t\tRecall: {recall*100}\t\tF1: {f1*100}"
+    #     logging.info(info_string)
