@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from utils import tokenize_and_align_labels
 from model import Bert, load_model
 from pprint import pprint
+from typing import List, Tuple
 
 FIRST_ORDER_PII_ENTITIES = [
     "O",
@@ -65,13 +66,17 @@ def replace_entities_with_other_if_not_present(
     return data
 
 
-def generate_tokenised_dataset(json_file_path: Path):
+def generate_tokenised_dataset(json_file_path: Path) -> Tuple[Dataset, Dataset, Dataset]:
     with open(json_file_path, "r") as fp:
         data = json.load(fp)
 
-    train_data, test_data = train_test_split(
-        data, test_size=0.02, random_state=42, shuffle=True
-    )
+    # First split the data into training and temporary sets
+    train_data, temp_data = train_test_split(
+        data, test_size=0.2, random_state=42, shuffle=True)
+
+    # Then split the temporary set into validation and test sets
+    validation_data, test_data = train_test_split(
+        temp_data, test_size=0.5, random_state=42, shuffle=True)
 
     if not check_first_order_pii_is_present(train_data):
         raise Exception("First order PII entities are not present")
@@ -79,6 +84,9 @@ def generate_tokenised_dataset(json_file_path: Path):
     train_data = replace_entities_with_other_if_not_present(train_data)
 
     test_data = replace_entities_with_other_if_not_present(test_data)
+
+    validation_data = replace_entities_with_other_if_not_present(
+        validation_data)
 
     label_id = 0
     label2id = {"O": label_id}
@@ -96,6 +104,7 @@ def generate_tokenised_dataset(json_file_path: Path):
     print("Num labels", len(label2id))
     train_hf_dataset = Dataset.from_list(train_data)
     test_hf_dataset = Dataset.from_list(test_data)
+    validation_hf_dataset = Dataset.from_list(validation_data)
 
     # bert_model, bert_tokenizer = load_model(
     #     "bert-base-uncased", "weights/bert-base-uncased.npz"
@@ -112,14 +121,14 @@ def generate_tokenised_dataset(json_file_path: Path):
     #     batched=True,
     #     batch_size=32,
     # )
-    return train_hf_dataset, test_hf_dataset
+    return (train_hf_dataset, test_hf_dataset, validation_hf_dataset)
 
 
 if __name__ == "__main__":
     print("*** Generating Dataset ***")
     json_path = Path(".").resolve() / "pii_training_data.json"
-    train_dataset, test_dataset = generate_tokenised_dataset(
+    train_dataset, test_dataset, validation_hf_dataset = generate_tokenised_dataset(
         json_file_path=json_path)
-    DatasetDict({"train": train_dataset, "test": test_dataset}
-                ).save_to_disk("./hf_ner_dataset")
+    DatasetDict({"train": train_dataset, "test": test_dataset,
+                "validation": validation_hf_dataset}).save_to_disk("./hf_ner_dataset")
     print("*** Done ***")
