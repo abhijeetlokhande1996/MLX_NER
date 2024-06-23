@@ -56,7 +56,8 @@ def post_process(predictions, labels, id2label):
     labels = labels.detach().cpu().clone().numpy()
 
     # Remove ignored index (special tokens)
-    true_labels = [[id2label[gt] for gt in label if gt != -100] for label in labels]
+    true_labels = [[id2label[gt] for gt in label if gt != -100]
+                   for label in labels]
 
     true_predictions = [
         [id2label[p] for p, gt in zip(pred, label) if gt != -100]
@@ -86,7 +87,8 @@ if __name__ == "__main__":
     raw_datasets = load_from_disk("./hf_ner_dataset")
 
     tokenized_datasets = raw_datasets.map(
-        lambda x: tokenize_and_align_labels(x, model.bert_tokenizer, model.label2id),
+        lambda x: tokenize_and_align_labels(
+            x, model.bert_tokenizer, model.label2id),
         batched=True,
         remove_columns=["words", "ner_labels"],
     )
@@ -148,7 +150,8 @@ if __name__ == "__main__":
         ]
     )
     assert len(weights) == len(label2id)
-    criterion = nn.CrossEntropyLoss(ignore_index=-100, reduction="mean", weight=weights)
+    criterion = nn.CrossEntropyLoss(
+        ignore_index=-100, reduction="mean", weight=weights)
     for train_step in range(num_train_epochs):
         model.train()
         for batch_idx, batch in enumerate(train_dataloader):
@@ -157,15 +160,18 @@ if __name__ == "__main__":
             labels = batch.pop("labels").long()
 
             logits = model(batch)
-            loss = criterion(logits.view(-1, logits.shape[-1]), labels.view(-1))
+            loss = criterion(
+                logits.view(-1, logits.shape[-1]), labels.view(-1))
 
-            true_labels, true_predictions = post_process(logits, labels, model.id2label)
+            true_labels, true_predictions = post_process(
+                logits, labels, model.id2label)
 
             # metric.add_batch(predictions=true_predictions, references=true_labels)
             precision = precision_score(
                 true_predictions, true_labels, average="weighted"
             )
-            recall = recall_score(true_predictions, true_labels, average="weighted")
+            recall = recall_score(
+                true_predictions, true_labels, average="weighted")
             f1 = f1_score(true_predictions, true_labels, average="weighted")
 
             optimizer.zero_grad()
@@ -188,16 +194,18 @@ if __name__ == "__main__":
             with torch.no_grad():
                 logits = model(batch)
 
-            true_labels, true_predictions = post_process(logits, labels, model.id2label)
+            true_labels, true_predictions = post_process(
+                logits, labels, model.id2label)
 
             # metric.add_batch(predictions=true_predictions, references=true_labels)
             precision = precision_score(
                 true_predictions, true_labels, average="weighted"
             )
-            recall = recall_score(true_predictions, true_labels, average="weighted")
+            recall = recall_score(
+                true_predictions, true_labels, average="weighted")
             f1 = f1_score(true_predictions, true_labels, average="weighted")
 
-            info_string = f"Test Step: {test_step}\t\tBatch: {batch_idx}\t\tLoss: {
+            info_string = f"Test Step: {test_step}\t\tBatch: {batch_idx}\t\tPrecision: {
                 precision*100}\t\tRecall: {recall*100}\t\tF1: {f1*100}"
             logging.info(info_string)
             break
