@@ -71,8 +71,10 @@ if __name__ == "__main__":
 
     metric = evaluate.load("seqeval")
 
-    BATCH_SIZE = 32
+    BATCH_SIZE = 8
     torch.set_default_device("mps")
+    # torch.set_default_dtype(torch.float16)
+
     device = torch.device("mps")
 
     model: ModelForTokenClassification = ModelForTokenClassification(
@@ -113,7 +115,7 @@ if __name__ == "__main__":
     num_update_steps_per_epoch = len(train_dataloader)
     num_training_steps = num_train_epochs * num_update_steps_per_epoch
 
-    optimizer = AdamW(model.parameters(), lr=2e-5)
+    optimizer = AdamW(model.parameters(), lr=5e-5)
     lr_scheduler = get_scheduler(
         "linear",
         optimizer=optimizer,
@@ -155,7 +157,6 @@ if __name__ == "__main__":
             labels = batch.pop("labels").long()
 
             logits = model(batch)
-
             loss = criterion(
                 logits.view(-1, logits.shape[-1]), labels.view(-1))
 
@@ -176,9 +177,9 @@ if __name__ == "__main__":
             progress_bar.update(1)
 
             info_string = f"Train Step: {train_step}\t\tBatch: {batch_idx}\t\tLoss: {
-                loss.item()}\t\tPrecision: {precision}\t\tRecall: {recall}\t\tF1: {f1}"
+                loss.item()}\t\tPrecision: {precision*100}\t\tRecall: {recall*100}\t\tF1: {f1*100}"
             logging.info(info_string)
-        logging.info("-"*100)
+        logging.info("--"*100)
 
         model.eval()
 
@@ -200,6 +201,6 @@ if __name__ == "__main__":
             f1 = f1_score(true_predictions, true_labels, average="weighted")
 
             info_string = f"Test Step: {test_step}\t\tBatch: {batch_idx}\t\tLoss: {
-                loss.item()}\t\tPrecision: {precision}\t\tRecall: {recall}\t\tF1: {f1}"
+                precision*100}\t\tRecall: {recall*100}\t\tF1: {f1*100}"
             logging.info(info_string)
             break
