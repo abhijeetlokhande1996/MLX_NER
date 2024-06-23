@@ -7,9 +7,9 @@ from mlx.core import array
 
 
 from model import load_model
-from datasets import Dataset
+from datasets import Dataset, load_from_disk
 import mlx
-from mlx.optimizers import Adam, cosine_decay
+from mlx.optimizers import Adam
 from tqdm import tqdm
 
 import logging
@@ -39,6 +39,29 @@ class ModelForTokenClassification(nn.Module):
         self.dropout = nn.Dropout(0.1)
         self.linear1 = nn.Linear(768, 100)
         self.linear2 = nn.Linear(100, num_labels)
+        self.label_weights = weights = mx.array([
+            0.1,  # O
+            1.0,  # B-FIRSTNAME
+            1.0,  # I-FIRSTNAME
+            1.0,  # B-MIDDLENAME
+            1.0,  # I-MIDDLENAME
+            1.0,  # B-LASTNAME
+            1.0,  # I-LASTNAME
+            1.0,  # B-SSN
+            1.0,  # I-SSN
+            1.0,  # B-ACCOUNTNUMBER
+            1.0,  # I-ACCOUNTNUMBER
+            1.0,  # B-CREDITCARDNUMBER
+            1.0,  # I-CREDITCARDNUMBER
+            1.0,  # B-DOB
+            1.0,  # I-DOB
+            1.0,  # B-EMAIL
+            1.0,  # I-EMAIL
+            1.0,  # B-PASSWORD
+            1.0,  # I-PASSWORD
+            1.0,  # B-PHONENUMBER
+            1.0,  # I-PHONENUMBER
+        ])
 
     def __call__(self, examples) -> mx.array:
         # tokens = self.bert_tokenizer(words, return_tensors="np", padding=True, is_split_into_words=True, truncation=True)
@@ -57,7 +80,7 @@ class ModelForTokenClassification(nn.Module):
         return logits, labels
 
 
-def compute_loss(logits: mx.array, y: mx.array) -> array:
+def compute_loss(logits: mx.array, y: mx.array, weights: mx.array) -> array:
     logits = np.array(logits)  # type: ignore
     y = np.array(y)  # type: ignore
 
@@ -67,12 +90,12 @@ def compute_loss(logits: mx.array, y: mx.array) -> array:
     valid_logits = logits[mask]
     valid_labels = y[mask]
     loss = nn.losses.cross_entropy(
-        mx.array(valid_logits), mx.array(valid_labels), reduction="mean"
+        mx.array(valid_logits), mx.array(valid_labels), reduction="mean", weights=weights
     )
     return loss
 
 
-def loss_function(logits: mx.array, y: mx.array) -> mx.array:
+def loss_function(logits: mx.array, y: mx.array, weights: mx.array) -> mx.array:
     return compute_loss(logits, y)
 
 
@@ -90,10 +113,6 @@ def calculate_f1_score(logits: mx.array, y: mx.array) -> float:
 if __name__ == "__main__":
 
     print("**** Training ****")
-
-    train_dataset = Dataset.load_from_disk("./hf_train_ner_dataset")
-
-    validation_dataset = Dataset.load_from_disk("./hf_test_ner_dataset")
     with open("label2id.json", "r") as fp:
         label2id = json.load(fp)
 
@@ -102,10 +121,13 @@ if __name__ == "__main__":
         num_labels=NUM_LABELS, label2id=label2id
     )
 
-    loss_and_grad_fn = nn.value_and_grad(model, loss_function)
+    raw_datasets = load_from_disk("./hf_ner_dataset")
+    tokenized_dataset = raw_datasets.map(lambda x: tokenize_and_align_labels(x, model.bert_tokenizer,
+                                                                             model.label2id, return_tensors="np"), batched=True, remove_columns=["words", "ner_labels"])
 
-    lr_schedule = cosine_decay(5e-5, 1000)
-    optimizer = Adam(learning_rate=lr_schedule)
+    """loss_and_grad_fn = nn.value_and_grad(model, loss_function)
+
+    optimizer = Adam(learning_rate=5e-5)
 
     batch_size = 32
     num_epochs = 3
@@ -121,11 +143,11 @@ if __name__ == "__main__":
             desc="Batches",
         )
         model.train()
-        model.bert_model.freeze()
         for i in train_batch_iterator:
             data_slice = train_dataset[i: i + batch_size]
             logits, labels = model(data_slice)
-            loss_value, grads = loss_and_grad_fn(logits, labels)
+            loss_value, grads = loss_and_grad_fn(
+                logits, labels, model.label_weights)
             optimizer.update(model, grads)
             train_loss_for_epoch += loss_value.tolist()
             f1 = calculate_f1_score(logits, labels)
@@ -137,6 +159,6 @@ if __name__ == "__main__":
         logging.info(f"Epoch: {epoch}\t\tLoss: {train_loss_for_epoch}")
 
         flat_params = tree_flatten(model.parameters())
-        mx.savez(
-            f"./models/pii_english_mlx_model_epoch_{epoch}.npz", **dict(flat_params)
-        )
+        mx.savez(f"./models/pii_english_mlx_model_epoch_{epoch}.npz", **dict(flat_params)
+                 )
+        """
