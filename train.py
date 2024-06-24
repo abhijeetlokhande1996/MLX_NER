@@ -8,6 +8,8 @@ from mlx.core import array
 
 from model import load_model
 from datasets import Dataset, load_from_disk
+from transformers import DataCollatorForTokenClassification, get_scheduler
+from torch.utils.data import DataLoader
 import mlx
 from mlx.optimizers import Adam
 from tqdm import tqdm
@@ -21,7 +23,7 @@ from utils import tokenize_and_align_labels
 
 logging.basicConfig(
     level=logging.INFO,
-    filename="train.log",
+    filename="mlx_train.log",
     filemode="w",
     format="%(asctime)s %(levelname)-8s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -38,9 +40,8 @@ class ModelForTokenClassification(nn.Module):
         self.bert_model_output_dim = 768
         self.label2id = label2id
         self.dropout = nn.Dropout(0.1)
-        self.linear1 = nn.Linear(768, 100)
-        self.linear2 = nn.Linear(100, num_labels)
-        self.label_weights = weights = mx.array(
+        self.linear1 = nn.Linear(768, num_labels)
+        self.label_weights = mx.array(
             [
                 0.1,  # O
                 1.0,  # B-FIRSTNAME
@@ -66,42 +67,30 @@ class ModelForTokenClassification(nn.Module):
             ]
         )
 
-    def __call__(self, examples) -> mx.array:
-        # tokens = self.bert_tokenizer(words, return_tensors="np", padding=True, is_split_into_words=True, truncation=True)
+    def __call__(self, x: Dict) -> mx.array:
+        # labels = mx.array(x.pop("labels"))
+        tokens = {key: mx.array(v) for key, v in x.items()}
 
-        tokens = tokenize_and_align_labels(examples, self.bert_tokenizer, self.label2id)
         labels = tokens.pop("labels")
-        tokens = {key: mx.array(v) for key, v in tokens.items()}
-
         output, _ = self.bert_model(**tokens)
         output = self.dropout(output)
-        output = nn.leaky_relu(self.linear1(output))
-        output = self.linear2(output)
+        output = self.linear1(output)
         logits = mx.softmax(output, axis=-1)
 
         return logits, labels
 
 
 def compute_loss(logits: mx.array, y: mx.array, weights: mx.array) -> array:
-    logits = np.array(logits)  # type: ignore
-    y = np.array(y)  # type: ignore
-
-    mask = y != -100
-
-    # Apply the mask to both logits and y
-    valid_logits = logits[mask]
-    valid_labels = y[mask]
-    loss = nn.losses.cross_entropy(
-        mx.array(valid_logits),
-        mx.array(valid_labels),
-        reduction="mean",
-        weights=weights,
-    )
+    import pdb
+    pdb.set_trace()
+    mask = np.array(y != -100).astype("int")
+    logits = logits * mask
+    loss = nn.losses.cross_entropy(logits=logits, targets=y, reduction="mean")
     return loss
 
 
 def loss_function(logits: mx.array, y: mx.array, weights: mx.array) -> mx.array:
-    return compute_loss(logits, y)
+    return compute_loss(logits, y, weights)
 
 
 def calculate_f1_score(logits: mx.array, y: mx.array) -> float:
@@ -126,16 +115,20 @@ if __name__ == "__main__":
         num_labels=NUM_LABELS, label2id=label2id
     )
 
-    raw_datasets = load_from_disk("./hf_ner_dataset")
-    tokenized_dataset = raw_datasets.map(
-        lambda x: tokenize_and_align_labels(
-            x, model.bert_tokenizer, model.label2id, return_tensors="np"
-        ),
-        batched=True,
-        remove_columns=["words", "ner_labels"],
-    )
+    # raw_datasets = load_from_disk("./hf_ner_dataset")
+    # tokenized_datasets = raw_datasets.map(
+    #     lambda x: tokenize_and_align_labels(
+    #         x, model.bert_tokenizer, model.label2id, max_length=200, return_tensors="np",
+    #     ),
+    #     batched=True,
+    # )
+    # tokenized_datasets.save_to_disk("./hf_ner_tokenized_dataset")
 
-    """loss_and_grad_fn = nn.value_and_grad(model, loss_function)
+    tokenized_datasets = load_from_disk("./hf_ner_tokenized_dataset")
+    train_tokenized_datasets = tokenized_datasets["train"]
+    test_tokenized_datasets = tokenized_datasets["test"]
+
+    loss_and_grad_fn = nn.value_and_grad(model, loss_function)
 
     optimizer = Adam(learning_rate=5e-5)
 
@@ -144,18 +137,25 @@ if __name__ == "__main__":
 
     epoch_iterator = tqdm(iterable=range(num_epochs),
                           total=num_epochs, desc="Epochs")
+
     for epoch in epoch_iterator:
         train_loss_for_epoch: float = 0
         validation_loss_for_epoch = 0
-        train_batch_iterator = tqdm(
-            range(0, len(train_dataset), batch_size),
-            total=len(train_dataset) // batch_size,
-            desc="Batches",
-        )
+        train_batch_iterator = tqdm(range(0, len(train_tokenized_datasets), batch_size), total=len(train_tokenized_datasets) // batch_size,
+                                    desc="Batches",
+                                    )
         model.train()
         for i in train_batch_iterator:
-            data_slice = train_dataset[i: i + batch_size]
+            data_slice = train_tokenized_datasets[i: i + batch_size]
+
+            if "words" in data_slice:
+                data_slice.pop("words")
+            if "ner_labels" in data_slice:
+                true_labels = data_slice.pop("ner_labels")
+            import pdb
+            pdb.set_trace()
             logits, labels = model(data_slice)
+
             loss_value, grads = loss_and_grad_fn(
                 logits, labels, model.label_weights)
             optimizer.update(model, grads)
@@ -169,6 +169,6 @@ if __name__ == "__main__":
         logging.info(f"Epoch: {epoch}\t\tLoss: {train_loss_for_epoch}")
 
         flat_params = tree_flatten(model.parameters())
-        mx.savez(f"./models/pii_english_mlx_model_epoch_{epoch}.npz", **dict(flat_params)
-                 )
-        """
+        mx.savez(
+            f"./models/pii_english_mlx_model_epoch_{epoch}.npz", **dict(flat_params)
+        )
