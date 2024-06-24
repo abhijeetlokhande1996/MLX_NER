@@ -127,7 +127,7 @@ def load_model(
     if not Path(weights_path).exists():
         raise ValueError(f"No model weights found in {weights_path}")
 
-    config = AutoConfig.from_pretrained(bert_model, torch_dtype="float16")
+    config = AutoConfig.from_pretrained(bert_model)
 
     # create and update the model
     model = Bert(config)
