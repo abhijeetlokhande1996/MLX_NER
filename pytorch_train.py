@@ -184,7 +184,10 @@ if __name__ == "__main__":
                 loss.item()}\t\tPrecision: {precision*100}\t\tRecall: {recall*100}\t\tF1: {f1*100}"
             logging.info(info_string)
         logging.info("--" * 100)
-    torch.save(model.state_dict(), './models/model.pth')
+    try:
+        torch.save(model.state_dict(), './models/model.pth')
+    except Exception as e:
+        torch.save(model.state_dict(), './model.pth')
 
     # model.eval()
 
