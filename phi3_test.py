@@ -1,23 +1,11 @@
-from transformers import AutoTokenizer, Phi3ForTokenClassification
-import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
+model = AutoModelForCausalLM.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
 tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
-model = Phi3ForTokenClassification.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
 
-inputs = tokenizer(
-    "HuggingFace is a company based in Paris and New York", add_special_tokens=False, return_tensors="pt"
-)
+messages = [{"role": "user", "content": "Can you provide ways to eat combinations of bananas and dragonfruits?"}]
+inputs = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt")
 
-with torch.no_grad():
-    logits = model(**inputs).logits
-
-predicted_token_class_ids = logits.argmax(-1)
-
-# Note that tokens are classified rather then input words which means that
-# there might be more predicted token classes than words.
-# Multiple token classes might account for the same word
-predicted_tokens_classes = [model.config.id2label[t.item()] for t in predicted_token_class_ids[0]]
-print(predicted_tokens_classes)
-
-labels = predicted_token_class_ids
-loss = model(**inputs, labels=labels).loss
+outputs = model.generate(inputs, max_new_tokens=32)
+text = tokenizer.batch_decode(outputs)[0]
+print(text)
